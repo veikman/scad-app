@@ -10,25 +10,19 @@
 ;; INTERNAL ;;
 ;;;;;;;;;;;;;;
 
-(defn- re-predicate-fn
-  "Define a basename predicate function based on a regular expression."
-  [regex]
-  (fn [basename] (some? (re-find regex basename))))
-
 (defn- default-namer
   [basename suffix]
   "Produce a relative file path for e.g. SCAD or STL."
   (io/file "output" suffix (str basename "." suffix)))
 
 (spec/def ::update-type
-  #{:skipped :started-scad :started-stl :failed-stl :finished})
+  #{:started-scad :started-stl :failed-stl :finished})
 
 (defn format-report
   "Take an asset update. Return a string describing it."
   [{:keys [basename filepath-scad filepath-stl update-type]}]
   {:pre [(spec/valid? ::update-type update-type)]}
   (case update-type
-    :skipped (format "Skipped %s" basename)
     :started-scad (format "Creating %s" filepath-scad)
     :started-stl (format "Creating %s" filepath-stl)
     :failed-stl (format "Could not render %s" filepath-scad)
@@ -81,8 +75,7 @@
   synchronization, to ensure that all reports have been resolved before the
   go block exits."
   [enqueue-report
-   {:keys [basename-pred whitelist-re namer scad-writer
-           render rendering-program stl-writer]
+   {:keys [namer scad-writer render rendering-program stl-writer]
     :or {namer default-namer,
          scad-writer to-scad,
          stl-writer (when render
@@ -90,24 +83,21 @@
    {:keys [basename]
     :as asset}]
   {:pre [(spec/valid? ::asset asset)]}
-  (let [basename-pred (re-predicate-fn (or whitelist-re #""))
-        loose-ends (async/chan)
+  (let [loose-ends (async/chan)
         n-ends (atom 0)
         log #(async/go (async/>! loose-ends (enqueue-report %))
-                       (swap! n-ends inc))]
-    (if (basename-pred basename)
-      (let [inputs (merge {:filepath-scad (namer basename "scad")
-                           :filepath-stl (namer basename "stl")}
-                          asset)]
-        (scad-writer log inputs)
-        (if stl-writer
-          ;; Call STL writer.
-          (if (stl-writer log inputs)
-            (log (merge asset {:update-type :finished}))
-            (log (merge asset {:update-type :failed-stl})))
-          ;; No STL write requested. SCAD is enough.
-          (log (merge asset {:update-type :finished}))))
-      (log (update asset :update-type :skipped)))
+                       (swap! n-ends inc))
+        inputs (merge {:filepath-scad (namer basename "scad")
+                       :filepath-stl (namer basename "stl")}
+                      asset)]
+    (scad-writer log inputs)
+    (if stl-writer
+      ;; Call STL writer.
+      (if (stl-writer log inputs)
+        (log (merge asset {:update-type :finished}))
+        (log (merge asset {:update-type :failed-stl})))
+      ;; No STL write requested. SCAD is enough.
+      (log (merge asset {:update-type :finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
 
@@ -115,6 +105,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; INTERFACE FUNCTIONS ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn filter-basenames
+  "Filter passed assets by applying passed regular expression to their
+  basenames."
+  [assets regex]
+  {:pre [(spec/valid? (spec/coll-of ::asset) assets)]}
+  (filter #(some? (re-find regex (:basename %))) assets))
 
 (defn build-all
   "Build specified assets in parallel. Block until all are complete.
@@ -127,6 +124,7 @@
     {:keys [report-fn build-fn]
      :or {report-fn print-report, build-fn build-asset}
      :as options}]
+   {:pre [(spec/valid? (spec/coll-of ::asset) assets)]}
    (let [report-chan (async/chan)
          enqueue-report
            (fn [asset]
