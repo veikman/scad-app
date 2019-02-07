@@ -40,13 +40,24 @@
   (println (format-report asset)))
 
 (defn to-scad
-  "Write one SCAD file from a scad-clj specification."
+  "Write one SCAD file from a scad-clj specification.
+  The specification is to be produced by a nullary callable, the ‘producer’.
+  If this function returns a vector, each object therein will be written as
+  a separate entity, as is appropriate with OpenSCAD modules. Otherwise, the
+  output of the producer is assumed to be a single entity and will be passed
+  as a sole argument to the scad-clj specification parser."
   [log {:keys [producer filepath-scad] :as asset}]
   {:pre [(some? producer)
          (some? filepath-scad)]}
   (log (merge asset {:update-type :started-scad}))
   (io/make-parents filepath-scad)
-  (spit filepath-scad (write-scad (producer))))
+  (let [model-spec (producer)
+        code (if (vector? model-spec)
+               ;; Code is presumed to include modules.
+               (apply write-scad model-spec)
+               ;; Code is presumed not to include modules.
+               (write-scad model-spec))]
+    (spit filepath-scad code)))
 
 (defn define-stl-writer
   "Define a function that render SCAD to STL.
