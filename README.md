@@ -1,32 +1,43 @@
 # `scad-app`: SCAD application interface
 
 `scad-app` is a small library for parallel rendering of model assets created
-with [`scad-clj`](https://github.com/farrellm/scad-clj).
+with Matthew Farrell’s [`scad-clj`](https://github.com/farrellm/scad-clj).
 
 At its most basic, this library offers a simple, standardized way to get
 SCAD files and render them to STL with OpenSCAD, from Clojure.
 Parallelization is done with `core.async`, thus automatically using a
-reasonable amount of threads.
+reasonable amount of threads for your computer hardware.
+
+`scad-app` also supports [chirality](https://en.wikipedia.org/wiki/Chirality)
+in concert with a reasonable way to define reusable OpenSCAD modules instead of
+repeating full specs throughout generated code.
 
 ## Usage
 
-Step by step:
+First, package your model as a `scad-app` asset. An asset is a Clojure map
+with a simple schema. At minimum, an asset must have a `:name` and some
+source of specifications for the model. There are three options:
 
-1. Develop a model in your Clojure code, e.g. `(cube 1 2 3)`.
-2. Stick the model in a nullary function, called a producer.
-3. Stick the function in a map, along with a name that will be used for file
-   outputs: a `basename`.
-4. Stick the map in an iterable, like this:
-   `[{:basename "example-asset", :producer (fn [] (cube 1 2 3))}]`.
-5. Pass that iterable to `scad-app.core/build-all`.
+1. `:model-main` is a single `scad-clj` spec like `(circle 1)`.
+2. `:model-vector` is a vector of such `scad-clj` specs.
+3. `:model-fn` is a nullary function that returns either of the above.
 
-By default, this will produce a file called `output/scad/example-asset.scad`,
+These three are all interchangeable, but you must supply at least one with each
+asset. An example of a complete asset looks like this:
+`def cube-asset {:name "cute_cube", :model-main (cube 1 2 3)}`.
+
+Having packaged your asset this way, you can write it to a file by calling
+`(scad-app.core/build-all [cube-asset])`.
+
+By default, this will produce a file called `output/scad/cute_cube.scad`,
 containing only the OpenSCAD code for the example cuboid.
 Along the way, you will get simple progress reports to `*out*`, e.g. your
 terminal.
 
 Things like how the file paths are built, whether and how to render to STL etc.
-are all configurable by passing options to `build-all`.
+are all configurable by passing options to `build-all`. To duplicate a chiral
+asset in a mirrored version, and/or inject modules into its model vector, call
+`refine-asset` first.
 
 ## License
 
