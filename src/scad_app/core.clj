@@ -43,17 +43,17 @@
   "Produce a relative file path for e.g. SCAD or STL."
   (io/file "output" suffix (str base "." suffix)))
 
-(defn format-report
+(defn- format-report
   "Take an asset update. Return a string describing it."
   [{:keys [name filepath-scad filepath-stl update-type]}]
   {:pre [(spec/valid? ::update-type update-type)]}
   (case update-type
-    :started-scad (format "Creating %s" filepath-scad)
-    :started-stl (format "Creating %s" filepath-stl)
-    :failed-stl (format "Could not render %s" filepath-scad)
-    :finished (format "Finished %s" name)))
+    :started-scad (format "%s: Creating %s" name filepath-scad)
+    :started-stl (format "%s: Creating %s" name filepath-stl)
+    :failed-stl (format "%s: Failed to render %s" name filepath-scad)
+    :finished (format "%s: Complete" name)))
 
-(defn print-report
+(defn- print-report
   "Print a progress report to *out* (by default: STDOUT)."
   [asset]
   (println (format-report asset)))
@@ -130,9 +130,10 @@
   OpenSCAD (e.g. ‘openscad-nightly’)."
   [program]
   (fn [log {:keys [filepath-scad filepath-stl] :as asset}]
-    (log (merge asset {:update-type :started-stl}))
-    (io/make-parents filepath-stl)
-    (zero? (:exit (sh program "-o" filepath-stl filepath-scad)))))
+    (let [cmd [program "-o" (.getPath filepath-stl) (.getPath filepath-scad)]]
+      (log (merge asset {:update-type :started-stl, :command-stl cmd}))
+      (io/make-parents filepath-stl)
+      (zero? (:exit (apply sh cmd))))))
 
 (defn- produce-module
   "Produce scad-clj specs for an OpenSCAD module."
@@ -167,10 +168,10 @@
     (if stl-writer
       ;; Call STL writer.
       (if (stl-writer log inputs)
-        (log (merge asset {:update-type :finished}))
-        (log (merge asset {:update-type :failed-stl})))
+        (log (merge inputs {:update-type :finished}))
+        (log (merge inputs {:update-type :failed-stl})))
       ;; No STL write requested. SCAD is enough.
-      (log (merge asset {:update-type :finished})))
+      (log (merge inputs {:update-type :finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
 
@@ -249,13 +250,18 @@
      :as options}]
    {:pre [(spec/valid? (spec/coll-of ::asset) assets)]}
    (let [report-chan (async/chan)
+         build-chan (async/chan)
          enqueue-report
            (fn [asset]
              (let [response-chan (async/chan)]
                (async/go
                  (async/>! report-chan [asset response-chan])
                  ;; Wait for reporting thread to close the channel it passed.
-                 (async/<! response-chan))))]
+                 (async/<! response-chan))))
+         build
+           (fn [asset]
+             (async/go (async/>! build-chan
+                         (build-fn enqueue-report options asset))))]
      (async/thread
        (loop []  ; Loop until report channel is closed.
          (when-let [report (async/<!! report-chan)]
@@ -263,8 +269,8 @@
              (report-fn asset)            ; Display message in UI.
              (async/close! response-chan))  ; Coordinate with sender.
            (recur))))
-     ;; Start all go blocks, then wait for them to finish.
-     (let [cvec (mapv (partial build-fn enqueue-report options) assets)]
-       (doseq [c cvec] (async/<!! c)))
+     ;; Start all async threads building assets, then wait for them to finish.
+     (doall (map build assets))
+     (dotimes [_ (count assets)] (async/<!! build-chan))
      ;; Close channel explicitly to prevent lingering circular references.
      (async/close! report-chan))))
