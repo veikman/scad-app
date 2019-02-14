@@ -3,10 +3,10 @@
 `scad-app` is a small library for parallel rendering of model assets created
 with Matthew Farrell’s [`scad-clj`](https://github.com/farrellm/scad-clj).
 
-At its most basic, this library offers a simple, standardized way to get
-SCAD files and render them to STL with OpenSCAD, from Clojure.
-Parallelization is done with `core.async`, thus automatically using a
-reasonable amount of threads for your computer hardware.
+At its most basic, this library offers a simple, standardized way to get SCAD
+files and render them to STL with OpenSCAD, from Clojure. Concurrency is done
+with `core.async`, automatically using a reasonable amount of threads for your
+hardware.
 
 `scad-app` also supports [chirality](https://en.wikipedia.org/wiki/Chirality)
 in concert with a reasonable way to define reusable OpenSCAD modules instead of
@@ -34,10 +34,20 @@ containing only the OpenSCAD code for the example cuboid.
 Along the way, you will get simple progress reports to `*out*`, e.g. your
 terminal.
 
+### Advanced features
+
 Things like how the file paths are built, whether and how to render to STL etc.
 are all configurable by passing options to `build-all`. To duplicate a chiral
 asset in a mirrored version, and/or inject modules into its model vector, call
 `refine-asset` first.
+
+## Demo
+
+This repository comes with a demo of how concurrency is handled. This demo
+doesn’t build any files but it makes a nice sandbox if you wish to test an
+improvement to the library.
+
+Run it like this: `lein exec -p src/demo/core.clj`
 
 ## License
 
