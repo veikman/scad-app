@@ -1,12 +1,12 @@
-# `scad-app`: SCAD application interface
+# `scad-app`: SCAD rendering interface
 
 `scad-app` is a small library for parallel rendering of model assets created
 with Matthew Farrell’s [`scad-clj`](https://github.com/farrellm/scad-clj).
 
 At its most basic, this library offers a simple, standardized way to get SCAD
 files and render them to STL with OpenSCAD, from Clojure. Concurrency is done
-with `core.async`, automatically using a reasonable amount of threads for your
-hardware.
+with `core.async`, automatically using a reasonable amount of CPU threads for
+your hardware.
 
 `scad-app` also supports [chirality](https://en.wikipedia.org/wiki/Chirality)
 in concert with a reasonable way to define reusable OpenSCAD modules instead of
@@ -16,7 +16,7 @@ repeating full specs throughout generated code.
 
 First, package your model as a `scad-app` asset. An asset is a Clojure map
 with a simple schema. At minimum, an asset must have a `:name` and some
-source of specifications for the model. There are three options:
+source of specifications for your model. There are three options:
 
 1. `:model-main` is a single `scad-clj` spec like `(circle 1)`.
 2. `:model-vector` is a vector of such `scad-clj` specs.

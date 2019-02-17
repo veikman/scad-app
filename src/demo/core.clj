@@ -11,14 +11,17 @@
             [scad-app.core :as core]))
 
 (def get-time #(java.time.LocalTime/now))
-
 (def t0 (get-time))
+(def get-delta #(. java.time.Duration between t0 (get-time)))
+
+(defn stamp-report [report] (assoc report :time-of-req (get-delta)))
 
 (defn print-timestamped
-  [{:keys [name update-type]}]
-  (let [t (get-time)
-        Δ (. java.time.Duration between t0 t)]
-    (println (.toString Δ) update-type name)))
+  [{:keys [name update-type time-of-req]}]
+  (let [time-of-feedback (get-delta)]
+    (println (.toString time-of-req)
+             (.toString time-of-feedback)
+             update-type name)))
 
 (defn- asset-sleep
   "Take a pair of durations snuck into an asset and sleep for that long."
@@ -27,17 +30,17 @@
         n-ends (atom 0)
         log #(async/go (async/>! loose-ends (enqueue-report %))
                        (swap! n-ends inc))]
-    (log (merge asset {:update-type :started-scad}))
+    (log (stamp-report (merge asset {:update-type :started-scad})))
     (Thread/sleep (or scad-sleep 0))
-    (log (merge asset {:update-type :started-stl}))
+    (log (stamp-report (merge asset {:update-type :started-stl})))
     (Thread/sleep (or stl-sleep 0))
-    (log (merge asset {:update-type :finished}))
+    (log (stamp-report (merge asset {:update-type :finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
 
 (defn -main
   [& _]
-  (print-timestamped {:name "demo", :update-type "started"})
+  (print-timestamped (stamp-report {:name "demo", :update-type "started"}))
   (core/build-all
     [{:name "a", :scad-sleep 5000, :stl-sleep 5000}
      {:name "of"}
@@ -55,6 +58,7 @@
      {:name "stupendousness", :scad-sleep 1000, :stl-sleep 5000}
      {:name "archeozoologist"}]
     {:report-fn print-timestamped, :build-fn asset-sleep})
-  (print-timestamped {:name "demo", :update-type "completed"}))
+  (Thread/sleep 10)  ; Try not to clash with final print from the above.
+  (print-timestamped (stamp-report {:name "demo", :update-type "completed"})))
 
 (apply -main (rest *command-line-args*))

@@ -109,13 +109,27 @@
       {:mirrored true, :model-main (mirror [-1 0 0] (single-model asset))})
     asset))
 
+(defn- mirror-rename
+  "Update asset name based on chirality and mirroring.
+  Take string-altering functions and an asset. Return an updated asset.
+  If the input asset is chiral, it must have information on mirroring, such as
+  is set by the mirror-chiral-asset function.
+  By default, if no functions are provided, an achiral asset will not have its
+  name changed, nor will a chiral asset that has not been mirrored, but a
+  mirrored asset will have “_mirrored” appended to its name."
+  [{:keys [achiral-fn original-fn mirrored-fn]
+    :or {achiral-fn identity, original-fn identity,
+         mirrored-fn #(str % "_mirrored")}}
+   {:keys [name chiral mirrored] :as asset}]
+  {:pre [(spec/valid? ::asset asset)
+         (if chiral (boolean? mirrored) true)]}
+  (let [f (cond mirrored mirrored-fn
+                chiral original-fn
+                :else achiral-fn)]
+    (update asset :name (f name))))
+
 (defn- to-scad
-  "Write one SCAD file from a scad-clj specification.
-  The specification is to be produced by a nullary callable, the ‘producer’.
-  If this function returns a vector, each object therein will be written as
-  a separate entity, as is appropriate with OpenSCAD modules. Otherwise, the
-  output of the producer is assumed to be a single entity and will be passed
-  as a sole argument to the scad-clj specification parser."
+  "Write one SCAD file from a scad-clj specification in an asset."
   [log {:keys [filepath-scad] :as asset}]
   {:pre [(some? filepath-scad)
          (spec/valid? ::asset asset)]}
@@ -147,8 +161,7 @@
   "Write one asset to file(s). Return a go-block channel.
   Progress reports are handled asynchronously, but each reporter is also
   put in a local channel and this channel is ultimately drained here for
-  synchronization, to ensure that all reports have been resolved before the
-  go block exits."
+  synchronization. The returned go block ensures that reports are resolved."
   [enqueue-report
    {:keys [filepath-fn scad-writer render rendering-program stl-writer]
     :or {filepath-fn default-filepath-fn,
@@ -174,24 +187,6 @@
       (log (merge inputs {:update-type :finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
-
-(defn- mirror-rename
-  "Update asset name based on chirality and mirroring.
-  Take string-altering functions and an asset. Return an updated asset.
-  By default, if no functions are provided, an achiral asset will not have its
-  name changed, nor will a chiral asset that has not been mirrored.
-  Also by default, a chiral asset that has been mirrored will have “-mirrored”
-  appended to its name.
-  If the input asset is chiral, it must have information on mirroring, such as
-  is set by the mirror-model function."
-  [{:keys [achiral-fn original-fn mirrored-fn]
-    :or {mirrored-fn #(str % "-mirrored")}}
-   {:keys [name chiral mirrored] :as asset}]
-  {:pre [(spec/valid? ::asset asset)
-         (if chiral (boolean? mirrored) true)]}
-  (let [f (or (if chiral (if mirrored mirrored-fn original-fn) achiral-fn)
-              identity)]
-    (update asset :name (f name))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -266,7 +261,7 @@
        (loop []  ; Loop until report channel is closed.
          (when-let [report (async/<!! report-chan)]
            (let [[asset response-chan] report]
-             (report-fn asset)            ; Display message in UI.
+             (report-fn asset)              ; Display message in UI.
              (async/close! response-chan))  ; Coordinate with sender.
            (recur))))
      ;; Start all async threads building assets, then wait for them to finish.
