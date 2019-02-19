@@ -2,11 +2,12 @@
   (:require [clojure.core.async :as async]
             [clojure.spec.alpha :as spec]
             [clojure.test :refer :all]
-            [scad-clj.model :refer [square cube]]
+            [scad-clj.model :refer [square cube mirror]]
             [scad-app.core :as mut]))
 
 (def sqm (square 1 2))
 (def cbm (cube 1 2 4))
+(def msq (mirror [-1 0 0] sqm))
 
 (deftest schemata
   (testing "the asset schema"
@@ -44,3 +45,13 @@
       (is (= @reports
              #{(merge a1 {:update-type :finished})
                (merge a2 {:update-type :finished})})))))
+
+(deftest refine-asset-test
+  (testing "the refine-asset function"
+    (is (= (mut/refine-asset {} {:name "n", :model-main sqm})
+           [{:name "n", :model-vector [sqm]}]))
+    (is (= (mut/refine-asset {} {:name "m", :model-main sqm, :chiral true})
+           [{:name "m", :chiral true,
+             :model-vector [sqm]}
+            {:name "m_mirrored", :chiral true, :mirrored true,
+             :model-vector [msq]}]))))

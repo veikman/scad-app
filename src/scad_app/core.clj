@@ -121,12 +121,11 @@
     :or {achiral-fn identity, original-fn identity,
          mirrored-fn #(str % "_mirrored")}}
    {:keys [name chiral mirrored] :as asset}]
-  {:pre [(spec/valid? ::asset asset)
-         (if chiral (boolean? mirrored) true)]}
+  {:pre [(spec/valid? ::asset asset)]}
   (let [f (cond mirrored mirrored-fn
                 chiral original-fn
                 :else achiral-fn)]
-    (update asset :name (f name))))
+    (assoc asset :name (f name))))
 
 (defn- to-scad
   "Write one SCAD file from a scad-clj specification in an asset."
@@ -150,7 +149,7 @@
       (zero? (:exit (apply sh cmd))))))
 
 (defn- produce-module
-  "Produce scad-clj specs for an OpenSCAD module."
+  "Return scad-clj specs for an OpenSCAD module."
   [{:keys [flip-chiral] :or {flip-chiral true}}
    {:keys [name chiral] :or {chiral false} :as asset}]
   {:pre [(spec/valid? ::asset asset)]}
@@ -215,13 +214,15 @@
    {:pre [(spec/valid? ::asset asset)
           (spec/valid? (spec/coll-of ::asset) module-assets)]}
    (reduce
-     (fn [coll mirrored]
-       (let [oriented (if flip-chiral (mirror-chiral-asset asset) asset)
+     (fn [coll mirrored-twin]
+       (let [oriented (if mirrored-twin (mirror-chiral-asset asset) asset)
              model-vector (vectored-model oriented)
-             modules (map (partial produce-module {:flip-chiral mirrored})
-                          module-assets)]
-         (conj coll (mirror-rename options
-                      (update :model-vector (concat modules model-vector))))))
+             modules (mapv (partial produce-module {:flip-chiral mirrored-twin})
+                           module-assets)]
+         (conj coll
+           (mirror-rename options
+             (merge (dissoc-model oriented)
+                    {:model-vector (vec (concat modules model-vector))})))))
      []
      (if (and chiral flip-chiral) [false true] [false]))))
 
