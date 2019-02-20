@@ -171,8 +171,9 @@
   {:pre [(spec/valid? ::asset asset)]}
   (let [loose-ends (async/chan)
         n-ends (atom 0)
-        log #(async/go (async/>! loose-ends (enqueue-report %))
-                       (swap! n-ends inc))
+        log (fn [msg]
+              (swap! n-ends inc)
+              (async/go (async/>! loose-ends (enqueue-report msg))))
         inputs (merge {:filepath-scad (filepath-fn name "scad")
                        :filepath-stl (filepath-fn name "stl")}
                       asset)]
@@ -267,6 +268,10 @@
            (recur))))
      ;; Start all async threads building assets, then wait for them to finish.
      (doall (map build assets))
-     (dotimes [_ (count assets)] (async/<!! build-chan))
-     ;; Close channel explicitly to prevent lingering circular references.
+     ;; Waiting takes the form of synchronously getting a build-fn go block out
+     ;; of build-chan and then waiting for that block as a channel.
+     (dotimes [_ (count assets)] (async/<!! (async/<!! build-chan)))
+     ;; By this point, both build-chan and report-chan should be drained,
+     ;; but the async/thread in this function should still be synchronously
+     ;; waiting for new reports. Close the channel to let the thread exit.
      (async/close! report-chan))))
