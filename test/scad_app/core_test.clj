@@ -47,9 +47,15 @@
                (merge a2 {:update-type :finished})})))))
 
 (deftest refine-asset-test
-  (testing "the refine-asset function"
+  (testing "the refine-asset function on an achiral asset"
     (is (= (mut/refine-asset {} {:name "n", :model-main sqm})
-           [{:name "n", :model-vector [sqm]}]))
+           [{:name "n", :model-vector [sqm]}])))
+  (testing "the refine-asset function on a chiral asset, declining mirroring"
+    (is (= (mut/refine-asset {:flip-chiral false}
+             {:name "m", :model-main sqm, :chiral true})
+           [{:name "m", :chiral true,
+             :model-vector [sqm]}])))
+  (testing "the refine-asset function on chiral asset, mirroring it"
     (is (= (mut/refine-asset {} {:name "m", :model-main sqm, :chiral true})
            [{:name "m", :chiral true,
              :model-vector [sqm]}
