@@ -3,6 +3,8 @@
 `scad-app` is a small library for parallel rendering of model assets created
 with Matthew Farrell’s [`scad-clj`](https://github.com/farrellm/scad-clj).
 
+[![Clojars Project](https://img.shields.io/clojars/v/scad-app.svg)](https://clojars.org/scad-app)
+
 At its most basic, this library offers a simple, standardized way to get SCAD
 files and render them to STL with OpenSCAD, from Clojure. Concurrency is done
 with `core.async`, automatically using a reasonable amount of CPU threads for
@@ -24,7 +26,7 @@ source of specifications for your model. There are three options:
 
 These three are all interchangeable, but you must supply at least one with each
 asset. An example of a complete asset looks like this:
-`def cube-asset {:name "cute_cube", :model-main (cube 1 2 3)}`.
+`(def cube-asset {:name "cute_cube", :model-main (cube 1 2 3)})`.
 
 Having packaged your asset this way, you can write it to a file by calling
 `(scad-app.core/build-all [cube-asset])`.

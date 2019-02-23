@@ -1,4 +1,4 @@
-(defproject scad-app "0.1.0"
+(defproject scad-app "0.2.0-SNAPSHOT"
   :description "Programmatic CAD rendering interface"
   :url "https://github.com/veikman/scad-app"
   :license {:name "Eclipse Public License"
