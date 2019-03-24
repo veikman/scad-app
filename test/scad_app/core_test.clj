@@ -1,7 +1,7 @@
 (ns scad-app.core-test
-  (:require [clojure.core.async :as async]
-            [clojure.spec.alpha :as spec]
+  (:require [clojure.spec.alpha :as spec]
             [clojure.test :refer :all]
+            [tempfile.core :refer [tempfile with-tempfile]]
             [scad-clj.model :refer [square cube mirror]]
             [scad-app.core :as mut]))
 
@@ -44,7 +44,24 @@
       (is (nil? (mut/build-all [a1 a2] {:build-fn build-fn, :report-fn report-fn})))
       (is (= @reports
              #{(merge a1 {:update-type :finished})
-               (merge a2 {:update-type :finished})})))))
+               (merge a2 {:update-type :finished})}))))
+  (testing "trivial OpenSCAD artefact"
+    (let [contents
+           (with-tempfile [t (tempfile)]
+             (mut/build-all
+               [{:name "b1", :filepath-scad (.getPath t), :model-main sqm}]
+               {:report-fn (fn [_])})
+             (slurp (.getPath t)))]
+      (is (= contents "square ([1, 2], center=true);\n"))))
+  (testing "OpenSCAD artefact at non-standard arc resolution"
+    (let [contents
+           (with-tempfile [t (tempfile)]
+             (mut/build-all
+               [{:name "b2", :filepath-scad (.getPath t), :model-main sqm,
+                 :minimum-face-size 1}]
+               {:report-fn (fn [_])})
+             (slurp (.getPath t)))]
+      (is (= contents "$fs = 1;\nsquare ([1, 2], center=true);\n")))))
 
 (deftest refine-asset-test
   (testing "the refine-asset function on an achiral asset"

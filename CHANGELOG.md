@@ -3,7 +3,12 @@ This log follows the conventions of
 [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
-Nothing yet.
+### Added
+- Support for file-level minimum face size (OpenSCAD’s special `$fs` variable)
+  as a property of assets, keyed as `minimum-face-size`.
+
+### Developer
+- Added file I/O in unit testing.
 
 ## Version 0.1.0 - 2019-02-20
 ### Added

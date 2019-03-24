@@ -5,7 +5,7 @@
             [clojure.spec.alpha :as spec]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
-            [scad-clj.model :refer [define-module mirror]]
+            [scad-clj.model :refer [define-module mirror fs!]]
             [scad-clj.scad :refer [write-scad]]))
 
 
@@ -21,17 +21,20 @@
 
 (spec/def ::name string?)
 (spec/def ::model-fn fn?)
-; :model-main should key any return value of a scad-clj model function.
-; ‘seq?’ is a fragile assumption about the library’s internals.
+;; :model-main should key any return value of a scad-clj model function.
+;; ‘seq?’ is a fragile assumption about the library’s internals.
+;; Cf. https://github.com/farrellm/scad-clj/issues/42
 (spec/def ::model-main seq?)
 (spec/def ::model-vector (spec/and vector? (spec/coll-of ::model-main)))
+;; The OpenSCAD manual on $fs: “The minimum allowed value is 0.01.”
+(spec/def ::minimum-face-size (spec/and number? #(>= % 0.01)))
 (spec/def ::chiral boolean?)
 (spec/def ::mirrored boolean?)
 (spec/def ::asset (spec/keys :req-un [::name]
                              :opt-un [::model-fn ::model-main ::model-vector
                                       ::chiral ::mirrored]))
-; TODO: Expand ::asset to require one of model-fn, model-main, model-vector,
-; and drop the corresponding ex-info below.
+;; TODO: Expand ::asset to require one of model-fn, model-main, model-vector,
+;; and drop the corresponding ex-info below.
 
 
 ;;;;;;;;;;;;;;
@@ -129,13 +132,14 @@
 
 (defn- to-scad
   "Write one SCAD file from a scad-clj specification in an asset."
-  [log {:keys [filepath-scad] :as asset}]
+  [log {:keys [filepath-scad minimum-face-size] :as asset}]
   {:pre [(some? filepath-scad)
          (spec/valid? ::asset asset)]}
   (log (merge asset {:update-type :started-scad}))
   (io/make-parents filepath-scad)
-  (let [{:keys [model-vector]} (ensure-model-vector asset)]
-    (spit filepath-scad (apply write-scad model-vector))))
+  (let [{:keys [model-vector]} (ensure-model-vector asset)
+        preface [(when minimum-face-size (fs! minimum-face-size))]]
+    (spit filepath-scad (apply write-scad (concat preface model-vector)))))
 
 (defn- define-stl-writer
   "Define a function that renders SCAD to STL.
