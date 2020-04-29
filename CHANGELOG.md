@@ -3,7 +3,9 @@ This log follows the conventions of
 [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
-Nothing yet.
+### Added
+- Support for file-level minimum face angle (OpenSCAD’s special `$fa` variable)
+  as a property of assets, keyed as `minimum-face-angle`.
 
 ## [Version 0.2.0] - 2019-03-24
 ### Added

@@ -55,13 +55,18 @@
       (is (= contents "square ([1, 2], center=true);\n"))))
   (testing "OpenSCAD artefact at non-standard arc resolution"
     (let [contents
-           (with-tempfile [t (tempfile)]
-             (mut/build-all
-               [{:name "b2", :filepath-scad (.getPath t), :model-main sqm,
-                 :minimum-face-size 1}]
-               {:report-fn (fn [_] nil)})
-             (slurp (.getPath t)))]
-      (is (= contents "$fs = 1;\nsquare ([1, 2], center=true);\n")))))
+            (fn [asset]
+              (with-tempfile [t (tempfile)]
+                (mut/build-all
+                  [(merge {:name "b2", :filepath-scad (.getPath t),
+                           :model-main sqm}
+                          asset)]
+                  {:report-fn (fn [_] nil)})
+                (slurp (.getPath t))))]
+      (is (= (contents {:minimum-face-angle 1})
+             "$fa = 1;\nsquare ([1, 2], center=true);\n"))
+      (is (= (contents {:minimum-face-size 1})
+             "$fs = 1;\nsquare ([1, 2], center=true);\n")))))
 
 (deftest refine-asset-test
   (testing "the refine-asset function on an achiral asset"
