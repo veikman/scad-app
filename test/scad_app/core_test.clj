@@ -1,6 +1,6 @@
 (ns scad-app.core-test
   (:require [clojure.spec.alpha :as spec]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest testing is]]
             [tempfile.core :refer [tempfile with-tempfile]]
             [scad-clj.model :refer [square cube mirror]]
             [scad-app.core :as mut]))
@@ -50,7 +50,7 @@
            (with-tempfile [t (tempfile)]
              (mut/build-all
                [{:name "b1", :filepath-scad (.getPath t), :model-main sqm}]
-               {:report-fn (fn [_])})
+               {:report-fn (fn [_] nil)})
              (slurp (.getPath t)))]
       (is (= contents "square ([1, 2], center=true);\n"))))
   (testing "OpenSCAD artefact at non-standard arc resolution"
@@ -59,7 +59,7 @@
              (mut/build-all
                [{:name "b2", :filepath-scad (.getPath t), :model-main sqm,
                  :minimum-face-size 1}]
-               {:report-fn (fn [_])})
+               {:report-fn (fn [_] nil)})
              (slurp (.getPath t)))]
       (is (= contents "$fs = 1;\nsquare ([1, 2], center=true);\n")))))
 

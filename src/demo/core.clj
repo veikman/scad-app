@@ -6,8 +6,7 @@
 ;;;     lein exec -p src/demo/core.clj
 
 (ns demo.core
-  (:require [clojure.java.shell :refer [sh]]
-            [clojure.core.async :as async]
+  (:require [clojure.core.async :as async]
             [scad-app.core :as core]))
 
 (def get-time #(java.time.LocalTime/now))
@@ -25,7 +24,7 @@
 
 (defn- asset-sleep
   "Take a pair of durations snuck into an asset and sleep for that long."
-  [enqueue-report options {:keys [name scad-sleep stl-sleep] :as asset}]
+  [enqueue-report options {:keys [scad-sleep stl-sleep] :as asset}]
   (let [loose-ends (async/chan)
         n-ends (atom 0)
         log #(async/go (async/>! loose-ends (enqueue-report %))

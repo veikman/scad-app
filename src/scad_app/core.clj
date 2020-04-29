@@ -155,7 +155,7 @@
 (defn- produce-module
   "Return scad-clj specs for an OpenSCAD module."
   [{:keys [flip-chiral] :or {flip-chiral true}}
-   {:keys [name chiral] :or {chiral false} :as asset}]
+   {:keys [name] :as asset}]
   {:pre [(spec/valid? ::asset asset)]}
   (define-module name
     (single-model (if flip-chiral (mirror-chiral-asset asset) asset))))
