@@ -239,7 +239,7 @@
   ([assets]
    (refine-all assets {}))
   ([assets {:keys [refine-fn] :or {refine-fn refine-asset} :as options}]
-   (apply concat (map (partial refine-fn options) assets))))
+   (mapcat (partial refine-fn options) assets)))
 
 (defn build-all
   "Build specified assets in parallel. Block until all are complete.
