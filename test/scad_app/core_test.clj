@@ -65,8 +65,9 @@
                 (slurp (.getPath t))))]
       (is (= (contents {:minimum-face-angle 1})
              "$fa = 1;\nsquare ([1, 2], center=true);\n"))
-      (is (= (contents {:minimum-face-size 1})
-             "$fs = 1;\nsquare ([1, 2], center=true);\n")))))
+      (is (= (contents {:face-count 2
+                        :minimum-face-size 1})
+             "$fn = 2;\n$fs = 1;\nsquare ([1, 2], center=true);\n")))))
 
 (deftest refine-asset-test
   (testing "the refine-asset function on an achiral asset"

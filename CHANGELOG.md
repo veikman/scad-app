@@ -4,8 +4,9 @@ This log follows the conventions of
 
 ## [Unreleased]
 ### Added
-- Support for file-level minimum face angle (OpenSCAD’s special `$fa` variable)
-  as a property of assets, keyed as `minimum-face-angle`.
+- Support for file-level minimum fragmentation (face) angle and number
+  (OpenSCAD’s special `$fa` and `$fn` variables) as a properties of assets,
+  keyed as `minimum-face-angle` and `face-count`.
 
 ## [Version 0.2.0] - 2019-03-24
 ### Added
