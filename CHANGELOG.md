@@ -3,6 +3,9 @@ This log follows the conventions of
 [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
+Nothing yet.
+
+## [Version 0.3.0] - 2019-09-07
 ### Added
 - Support for file-level minimum fragmentation (face) angle and number
   (OpenSCAD’s special `$fa` and `$fn` variables) as a properties of assets,
@@ -21,5 +24,6 @@ This log follows the conventions of
 - Basic functions for writing SCAD and STL with support for chirality and
   OpenSCAD modules.
 
-[Unreleased]: https://github.com/veikman/scad-app/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/veikman/scad-app/compare/v0.3.0...HEAD
+[Version 0.3.0]: https://github.com/veikman/scad-app/compare/v0.2.0...v0.3.0
 [Version 0.2.0]: https://github.com/veikman/scad-app/compare/v0.1.0...v0.2.0
