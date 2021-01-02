@@ -3,7 +3,17 @@ This log follows the conventions of
 [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
-Nothing yet.
+### Changed
+- Changed keywords passed to `report-fn`. This breaks applications
+  that pass a custom function relying on the old keywords; no such
+  applications are known.
+    - Namespaced keywords pertaining to log messages.
+    - Replaced `started-stl` and `failed-stl` keywords with generic `-render`
+      equivalents, and similarly, replaced `command-stl` with `command-render`.
+
+### Added
+- Rendering to two-dimensional images.
+    - Added rendering commands to printed reports on failure.
 
 ## [Version 0.3.0] - 2019-09-07
 ### Added

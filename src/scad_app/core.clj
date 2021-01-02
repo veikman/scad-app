@@ -2,9 +2,10 @@
 
 (ns scad-app.core
   (:require [clojure.core.async :as async]
-            [clojure.spec.alpha :as spec]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
+            [clojure.spec.alpha :as spec]
+            [clojure.string :refer [join]]
             [scad-clj.model :refer [define-module mirror fa! fn! fs!]]
             [scad-clj.scad :refer [write-scad]]))
 
@@ -14,10 +15,11 @@
 ;;;;;;;;;;;;
 
 (spec/def ::update-type
-  #{:started-scad :started-stl :failed-stl :finished})
+  #{::started-scad ::started-render ::failed-render ::finished})
 
 (spec/def ::render boolean?)
 (spec/def ::rendering-program string?)
+(spec/def ::command-render (spec/coll-of string?))
 
 (spec/def ::name string?)
 (spec/def ::model-fn fn?)
@@ -51,13 +53,17 @@
 
 (defn- format-report
   "Take an asset update. Return a string describing it."
-  [{:keys [name filepath-scad filepath-stl update-type]}]
+  [{:keys [name filepath-scad]
+    ::keys [update-type filepath-render command-render]}]
   {:pre [(spec/valid? ::update-type update-type)]}
   (case update-type
-    :started-scad (format "%s: Creating %s" name filepath-scad)
-    :started-stl (format "%s: Creating %s" name filepath-stl)
-    :failed-stl (format "%s: Failed to render %s" name filepath-scad)
-    :finished (format "%s: Complete" name)))
+    ::started-scad (format "%s: Creating %s" name filepath-scad)
+    ::started-render (format "%s: Creating %s" name filepath-render)
+    ::failed-render (do
+                      (assert (spec/valid? ::command-render command-render))
+                      (format "%s: Failed to render %s with external command “%s”"
+                              name filepath-render (join " " command-render)))
+    ::finished (format "%s: Complete" name)))
 
 (defn- print-report
   "Print a progress report to *out* (by default: STDOUT)."
@@ -134,13 +140,16 @@
     (assoc asset :name (f name))))
 
 (defn- to-scad
-  "Write one SCAD file from a scad-clj specification in an asset."
+  "Write one SCAD file from a scad-clj specification in an asset.
+  This operation does not log failure because it does not call external
+  utilities that are considered risky. Failure will instead crash the
+  current application."
   [log {:keys [filepath-scad minimum-face-angle face-count
                minimum-face-size]
         :as asset}]
   {:pre [(some? filepath-scad)
          (spec/valid? ::asset asset)]}
-  (log (merge asset {:update-type :started-scad}))
+  (log (merge asset {::update-type ::started-scad}))
   (io/make-parents filepath-scad)
   (let [{:keys [model-vector]} (ensure-model-vector asset)
         preface [(when minimum-face-angle (fa! minimum-face-angle))
@@ -148,16 +157,36 @@
                  (when minimum-face-size (fs! minimum-face-size))]]
     (spit filepath-scad (apply write-scad (concat preface model-vector)))))
 
-(defn- define-stl-writer
-  "Define a function that renders SCAD to STL.
-  The function is to call a named rendering program CLI-compatible with
-  OpenSCAD (e.g. ‘openscad-nightly’)."
-  [program]
-  (fn [log {:keys [filepath-scad filepath-stl] :as asset}]
-    (let [cmd [program "-o" (.getPath filepath-stl) (.getPath filepath-scad)]]
-      (log (merge asset {:update-type :started-stl, :command-stl cmd}))
-      (io/make-parents filepath-stl)
-      (zero? (:exit (apply sh cmd))))))
+(defn- from-scad
+  "Render SCAD to something else.
+  Call a named rendering program with a prepared CLI command."
+  [log asset filepath-out cmd]
+  (let [status-update (fn [update-type]
+                        (log (merge asset {::update-type update-type,
+                                           ::command-render cmd,
+                                           ::filepath-render filepath-out})))]
+    (status-update ::started-render)
+    (io/make-parents filepath-out)
+    (let [success (zero? (:exit (apply sh cmd)))]
+      (when-not success (status-update ::failed-render))
+      success)))
+
+(defn- default-stl-writer
+  "Render SCAD to STL."
+  [log {:keys [rendering-program filepath-scad filepath-stl] :as asset}]
+  (from-scad log asset filepath-stl
+             [(or rendering-program "openscad")
+              "-o" (.getPath filepath-stl) (.getPath filepath-scad)]))
+
+(defn- default-image-writers
+  "Define a vector of nullary functions.
+  Each of these renders a 2D image of one asset. All of them use the same asset."
+  [log {:keys [rendering-program filepath-scad images] :or {images []} :as asset}]
+  (mapv (fn [{:keys [filepath]}]
+          #(from-scad log asset filepath
+                      [(or rendering-program "openscad")
+                       "-o" (.getPath filepath) (.getPath filepath-scad)]))
+        images))
 
 (defn- produce-module
   "Return scad-clj specs for an OpenSCAD module."
@@ -173,11 +202,8 @@
   put in a local channel and this channel is ultimately drained here for
   synchronization. The returned go block ensures that reports are resolved."
   [enqueue-report
-   {:keys [filepath-fn scad-writer render rendering-program stl-writer]
-    :or {filepath-fn default-filepath-fn,
-         scad-writer to-scad,
-         stl-writer (when render
-                      (define-stl-writer (or rendering-program "openscad")))}}
+   {:keys [filepath-fn scad-writer render image-writers stl-writer]
+    :or {filepath-fn default-filepath-fn, scad-writer to-scad}}
    {:keys [name] :as asset}]
   {:pre [(spec/valid? ::asset asset)]}
   (let [loose-ends (async/chan)
@@ -189,13 +215,20 @@
                        :filepath-stl (filepath-fn name "stl")}
                       asset)]
     (scad-writer log inputs)
-    (if stl-writer
-      ;; Call STL writer.
-      (if (stl-writer log inputs)
-        (log (merge inputs {:update-type :finished}))
-        (log (merge inputs {:update-type :failed-stl})))
-      ;; No STL write requested. SCAD is enough.
-      (log (merge inputs {:update-type :finished})))
+    (when (or (not render)
+              (and render
+                   (reduce
+                     ;; Terminate if any render fails.
+                     (fn [_ writer] (if (writer) true (reduced false)))
+                     nil
+                     ;; Iterate over one rendering function per output file.
+                     (remove nil?
+                       (conj
+                         (or image-writers
+                             (default-image-writers log inputs))
+                         (or stl-writer
+                             #(default-stl-writer log inputs)))))))
+      (log (merge inputs {::update-type ::finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
 

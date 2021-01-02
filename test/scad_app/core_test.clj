@@ -38,13 +38,13 @@
     (let [reports (atom #{})
           report-fn (fn [asset] (swap! reports conj asset))
           build-fn (fn [log options asset]
-                     (log (merge asset {:update-type :finished})))
+                     (log (merge asset {::mut/update-type ::mut/finished})))
           a1 {:name "a1", :model-main sqm}
           a2 {:name "a2", :model-main cbm}]
       (is (nil? (mut/build-all [a1 a2] {:build-fn build-fn, :report-fn report-fn})))
       (is (= @reports
-             #{(merge a1 {:update-type :finished})
-               (merge a2 {:update-type :finished})}))))
+             #{(merge a1 {::mut/update-type ::mut/finished})
+               (merge a2 {::mut/update-type ::mut/finished})}))))
   (testing "trivial OpenSCAD artefact"
     (let [contents
            (with-tempfile [t (tempfile)]
