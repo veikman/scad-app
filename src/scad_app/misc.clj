@@ -6,6 +6,8 @@
             [clojure.string :refer [join]]
             [scad-app.schema :as schema]))
 
+(defn- intish [n] (if (integer? n) n (float n)))
+
 (defn compose-filepath
   "Produce a relative file path for e.g. SCAD, PNG or STL."
   ([head suffix]
@@ -22,19 +24,19 @@
   "Compose a CLI argument to OpenSCAD for camera position."
   [{:keys [translation rotation distance eye center] :as options}]
   (join ","
-    (map
-      (fn [n] (if (integer? n) n (float n)))
+    (map intish
       (case (first (spec/conform ::schema/camera options))
         :gimbal (concat translation rotation [distance])
         :vector (concat eye center)))))
 
 (defn compose-openscad-command
   "Compose a complete, shell-ready command for running OpenSCAD."
-  [{:keys [rendering-program outputfile camera]
+  [{:keys [rendering-program outputfile camera size]
     :or {rendering-program "openscad"}}
    inputfile]
   (concat
     [rendering-program]
     (when outputfile ["-o" (.getPath outputfile)])
     (when camera ["--camera" (compose-camera-argument camera)])
+    (when size ["--imgsize" (join "," (map intish size))])
     [(.getPath inputfile)]))

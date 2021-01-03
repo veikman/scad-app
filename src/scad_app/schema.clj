@@ -32,8 +32,10 @@
 (spec/def ::camera
   (spec/or :gimbal (spec/keys :req-un [::translation ::rotation ::distance])
            :vector (spec/keys :req-un [::eye ::center])))
+(spec/def :image/size (spec/coll-of number? :count 2))
 
-(spec/def ::image (spec/keys :req-un [::name ::camera] :opt-un [::suffix]))
+(spec/def ::image (spec/keys :req-un [::name ::camera :image/size]
+                             :opt-un [::suffix]))
 (spec/def ::images (spec/coll-of ::image))
 (spec/def ::asset (spec/keys :req-un [::name]
                              :opt-un [::model-fn ::model-main ::model-vector
