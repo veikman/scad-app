@@ -31,7 +31,7 @@
 
 (defn compose-openscad-command
   "Compose a complete, shell-ready command for running OpenSCAD."
-  [{:keys [rendering-program outputfile camera size]
+  [{:keys [rendering-program outputfile camera size colorscheme]
     :or {rendering-program "openscad"}}
    inputfile]
   (concat
@@ -39,4 +39,5 @@
     (when outputfile ["-o" (.getPath outputfile)])
     (when camera ["--camera" (compose-camera-argument camera)])
     (when size ["--imgsize" (join "," (map intish size))])
+    (when colorscheme ["--colorscheme" colorscheme])
     [(.getPath inputfile)]))
