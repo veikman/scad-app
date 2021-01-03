@@ -7,63 +7,30 @@
             [clojure.spec.alpha :as spec]
             [clojure.string :refer [join]]
             [scad-clj.model :refer [define-module mirror fa! fn! fs!]]
-            [scad-clj.scad :refer [write-scad]]))
-
-
-;;;;;;;;;;;;
-;; SCHEMA ;;
-;;;;;;;;;;;;
-
-(spec/def ::update-type
-  #{::started-scad ::started-render ::failed-render ::finished})
-
-(spec/def ::render boolean?)
-(spec/def ::rendering-program string?)
-(spec/def ::command-render (spec/coll-of string?))
-
-(spec/def ::name string?)
-(spec/def ::model-fn fn?)
-;; :model-main should key any return value of a scad-clj model function.
-;; ‘seq?’ is a fragile assumption about the library’s internals.
-;; Cf. https://github.com/farrellm/scad-clj/issues/42
-(spec/def ::model-main seq?)
-(spec/def ::model-vector (spec/and vector? (spec/coll-of ::model-main)))
-;; The OpenSCAD manual on $fa and $fs: “The minimum allowed value is 0.01.”
-(spec/def ::minimum-face-angle (spec/and number? #(>= % 0.01)))
-(spec/def ::minimum-face-size ::minimum-face-angle)
-(spec/def ::face-count (spec/and integer? #(>= % 0)))
-(spec/def ::chiral boolean?)
-(spec/def ::mirrored boolean?)
-(spec/def ::asset (spec/keys :req-un [::name]
-                             :opt-un [::model-fn ::model-main ::model-vector
-                                      ::chiral ::mirrored ::face-count
-                                      ::minimum-face-angle ::minimum-face-size]))
-;; TODO: Expand ::asset to require one of model-fn, model-main, model-vector,
-;; and drop the corresponding ex-info below.
+            [scad-clj.scad :refer [write-scad]]
+            [scad-app.schema :as schema]
+            [scad-app.misc :as misc]))
 
 
 ;;;;;;;;;;;;;;
 ;; INTERNAL ;;
 ;;;;;;;;;;;;;;
 
-(defn- default-filepath-fn
-  [base suffix]
-  "Produce a relative file path for e.g. SCAD or STL."
-  (io/file "output" suffix (str base "." suffix)))
-
 (defn- format-report
   "Take an asset update. Return a string describing it."
   [{:keys [name filepath-scad]
-    ::keys [update-type filepath-render command-render]}]
-  {:pre [(spec/valid? ::update-type update-type)]}
+    ::schema/keys [update-type filepath-render command-render]}]
+  {:pre [(spec/valid? ::schema/update-type update-type)
+         (spec/valid? (spec/nilable ::schema/command-render) command-render)]}
   (case update-type
-    ::started-scad (format "%s: Creating %s" name filepath-scad)
-    ::started-render (format "%s: Creating %s" name filepath-render)
-    ::failed-render (do
-                      (assert (spec/valid? ::command-render command-render))
-                      (format "%s: Failed to render %s with external command “%s”"
-                              name filepath-render (join " " command-render)))
-    ::finished (format "%s: Complete" name)))
+    ::schema/started-scad (format "%s: Creating %s" name filepath-scad)
+    ::schema/started-render (format "%s: Creating %s" name filepath-render)
+    ::schema/failed-render
+      (do
+        (assert command-render)
+        (format "%s: Failed to render %s with external command “%s”"
+                name filepath-render (join " " command-render)))
+    ::schema/finished (format "%s: Complete" name)))
 
 (defn- print-report
   "Print a progress report to *out* (by default: STDOUT)."
@@ -87,7 +54,7 @@
 (defn- ensure-model-vector
   "Take an asset. Return an asset with a vector of scad-clj specs."
   [{:keys [name model-fn model-main model-vector] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (cond
     model-vector asset  ; Asset is already complete.
     model-main (merge asset {:model-vector [model-main]})  ; Wrap seq.
@@ -99,7 +66,7 @@
 (defn- ensure-model-main
   "Take an asset. Return an asset with an unwrapped main scad-clj spec."
   [{:keys [name model-fn model-main model-vector] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (cond
     model-main asset  ; Asset is already complete.
     model-vector (do (assert (= (count model-vector) 1))
@@ -114,7 +81,7 @@
   :model-main, mirror that model on the x axis, and tag the updated asset
   as mirrored so the operation will not be repeated on a second pass."
   [{:keys [chiral mirrored] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (if (and chiral (not mirrored))
     (merge
       (dissoc-model asset)
@@ -133,7 +100,7 @@
     :or {achiral-fn identity, original-fn identity,
          mirrored-fn #(str % "_mirrored")}}
    {:keys [name chiral mirrored] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (let [f (cond mirrored mirrored-fn
                 chiral original-fn
                 :else achiral-fn)]
@@ -148,8 +115,8 @@
                minimum-face-size]
         :as asset}]
   {:pre [(some? filepath-scad)
-         (spec/valid? ::asset asset)]}
-  (log (merge asset {::update-type ::started-scad}))
+         (spec/valid? ::schema/asset asset)]}
+  (log (merge asset {::schema/update-type ::schema/started-scad}))
   (io/make-parents filepath-scad)
   (let [{:keys [model-vector]} (ensure-model-vector asset)
         preface [(when minimum-face-angle (fa! minimum-face-angle))
@@ -162,37 +129,41 @@
   Call a named rendering program with a prepared CLI command."
   [log asset filepath-out cmd]
   (let [status-update (fn [update-type]
-                        (log (merge asset {::update-type update-type,
-                                           ::command-render cmd,
-                                           ::filepath-render filepath-out})))]
-    (status-update ::started-render)
+                        (log (merge asset {::schema/update-type update-type,
+                                           ::schema/command-render cmd,
+                                           ::schema/filepath-render filepath-out})))]
+    (status-update ::schema/started-render)
     (io/make-parents filepath-out)
     (let [success (zero? (:exit (apply sh cmd)))]
-      (when-not success (status-update ::failed-render))
+      (when-not success (status-update ::schema/failed-render))
       success)))
 
 (defn- default-stl-writer
   "Render SCAD to STL."
-  [log {:keys [rendering-program filepath-scad filepath-stl] :as asset}]
+  [log {:keys [filepath-scad filepath-stl] :as asset}]
   (from-scad log asset filepath-stl
-             [(or rendering-program "openscad")
-              "-o" (.getPath filepath-stl) (.getPath filepath-scad)]))
+             (misc/compose-openscad-command
+               (merge asset {:outputfile filepath-stl})
+               filepath-scad)))
 
 (defn- default-image-writers
-  "Define a vector of nullary functions.
-  Each of these renders a 2D image of one asset. All of them use the same asset."
-  [log {:keys [rendering-program filepath-scad images] :or {images []} :as asset}]
-  (mapv (fn [{:keys [filepath]}]
-          #(from-scad log asset filepath
-                      [(or rendering-program "openscad")
-                       "-o" (.getPath filepath) (.getPath filepath-scad)]))
+  "Define a vector of nullary functions based on a shared asset.
+  Each of these renders a separate 2D image of the asset."
+  [log {:keys [filepath-fn filepath-scad images]
+        :or {filepath-fn misc/compose-filepath, images []}
+        :as asset}]
+  (mapv (fn [{:keys [name suffix] :or {suffix "png"} :as image}]
+          (let [filepath (filepath-fn (:name asset) suffix {:tail [name]})
+                options (merge asset image {:outputfile filepath})]
+            #(from-scad log asset filepath
+                        (misc/compose-openscad-command options filepath-scad))))
         images))
 
 (defn- produce-module
   "Return scad-clj specs for an OpenSCAD module."
   [{:keys [flip-chiral] :or {flip-chiral true}}
    {:keys [name] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (define-module name
     (single-model (if flip-chiral (mirror-chiral-asset asset) asset))))
 
@@ -203,9 +174,9 @@
   synchronization. The returned go block ensures that reports are resolved."
   [enqueue-report
    {:keys [filepath-fn scad-writer render image-writers stl-writer]
-    :or {filepath-fn default-filepath-fn, scad-writer to-scad}}
+    :or {filepath-fn misc/compose-filepath, scad-writer to-scad}}
    {:keys [name] :as asset}]
-  {:pre [(spec/valid? ::asset asset)]}
+  {:pre [(spec/valid? ::schema/asset asset)]}
   (let [loose-ends (async/chan)
         n-ends (atom 0)
         log (fn [msg]
@@ -228,7 +199,7 @@
                              (default-image-writers log inputs))
                          (or stl-writer
                              #(default-stl-writer log inputs)))))))
-      (log (merge inputs {::update-type ::finished})))
+      (log (merge inputs {::schema/update-type ::schema/finished})))
     (async/go
       (dotimes [_ @n-ends] (async/<! loose-ends)))))
 
@@ -240,7 +211,7 @@
 (defn filter-by-name
   "Filter passed assets by a regular expression applied to their names."
   [regex assets]
-  {:pre [(spec/valid? (spec/coll-of ::asset) assets)]}
+  {:pre [(spec/valid? (spec/coll-of ::schema/asset) assets)]}
   (filter #(some? (re-find regex (:name %))) assets))
 
 (defn refine-asset
@@ -256,8 +227,8 @@
   ([{:keys [flip-chiral] :or {flip-chiral true} :as options}
     {:keys [chiral] :or {chiral false} :as asset}
     module-assets]
-   {:pre [(spec/valid? ::asset asset)
-          (spec/valid? (spec/coll-of ::asset) module-assets)]}
+   {:pre [(spec/valid? ::schema/asset asset)
+          (spec/valid? (spec/coll-of ::schema/asset) module-assets)]}
    (reduce
      (fn [coll mirrored-twin]
        (let [oriented (if mirrored-twin (mirror-chiral-asset asset) asset)
@@ -289,7 +260,7 @@
     {:keys [report-fn build-fn]
      :or {report-fn print-report, build-fn asset-io}
      :as options}]
-   {:pre [(spec/valid? (spec/coll-of ::asset) assets)]}
+   {:pre [(spec/valid? (spec/coll-of ::schema/asset) assets)]}
    (let [report-chan (async/chan)
          build-chan (async/chan)
          enqueue-report
