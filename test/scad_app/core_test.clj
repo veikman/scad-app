@@ -1,6 +1,5 @@
 (ns scad-app.core-test
-  (:require [clojure.spec.alpha :as spec]
-            [clojure.test :refer [deftest testing is]]
+  (:require [clojure.test :refer [deftest testing is]]
             [tempfile.core :refer [tempfile with-tempfile]]
             [scad-clj.model :refer [square cube mirror]]
             [scad-app.core :as mut]))
@@ -8,13 +7,6 @@
 (def sqm (square 1 2))
 (def cbm (cube 1 2 4))
 (def msq (mirror [-1 0 0] sqm))
-
-(deftest schemata
-  (testing "the asset schema"
-    (is (spec/valid? ::mut/asset {:name "a"}))
-    (is (spec/valid? ::mut/asset {:name "b", :model-fn #(sqm)}))
-    (is (spec/valid? ::mut/asset {:name "c", :model-main sqm}))
-    (is (spec/valid? ::mut/asset {:name "d", :model-vector [sqm]}))))
 
 (deftest filter-test
   (testing "filter-by-name, single input"
