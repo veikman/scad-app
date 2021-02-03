@@ -14,6 +14,7 @@ This log follows the conventions of
 ### Added
 - Rendering to two-dimensional images.
     - Added rendering commands to printed reports on failure.
+- Termination on failure to render SCAD.
 - Exposed (and expanded) the default filepath composition function.
 
 ## [Version 0.3.0] - 2019-09-07

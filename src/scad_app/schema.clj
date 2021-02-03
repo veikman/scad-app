@@ -4,7 +4,7 @@
   (:require [clojure.spec.alpha :as spec]))
 
 (spec/def ::update-type
-  #{::started-scad ::started-render ::failed-render ::finished})
+  #{::started-scad ::failed-scad ::started-render ::failed-render ::finished})
 
 (spec/def ::render boolean?)
 (spec/def ::rendering-program string?)

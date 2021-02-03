@@ -19,11 +19,17 @@
 (defn- format-report
   "Take an asset update. Return a string describing it."
   [{:keys [name filepath-scad]
-    ::schema/keys [update-type filepath-render command-render]}]
+    ::schema/keys [update-type exception filepath-render command-render]}]
   {:pre [(spec/valid? ::schema/update-type update-type)
          (spec/valid? (spec/nilable ::schema/command-render) command-render)]}
   (case update-type
     ::schema/started-scad (format "%s: Creating %s" name filepath-scad)
+    ::schema/failed-scad
+      (do
+        (assert exception)
+        (format (str "%s: Failed to author %s; caught exception “%s” "
+                     "from scad-clj’s interpretation of intermediate code")
+                name filepath-scad exception))
     ::schema/started-render (format "%s: Creating %s" name filepath-render)
     ::schema/failed-render
       (do
@@ -178,30 +184,39 @@
    {:keys [name] :as asset}]
   {:pre [(spec/valid? ::schema/asset asset)]}
   (let [loose-ends (async/chan)
-        n-ends (atom 0)
-        log (fn [msg]
+        n-ends (atom 0)     ; Number of loose ends to synchronize on.
+        abort (atom false)  ; Set to true on failure.
+        log (fn [{::schema/keys [update-type] :as msg}]
+              (when (#{::schema/failed-scad ::schema/failed-render} update-type)
+                (reset! abort true))
               (swap! n-ends inc)
               (async/go (async/>! loose-ends (enqueue-report msg))))
         inputs (merge {:filepath-scad (filepath-fn name "scad")
                        :filepath-stl (filepath-fn name "stl")}
                       asset)]
-    (scad-writer log inputs)
-    (when (or (not render)
-              (and render
-                   (reduce
-                     ;; Terminate if any render fails.
-                     (fn [_ writer] (if (writer) true (reduced false)))
-                     nil
-                     ;; Iterate over one rendering function per output file.
-                     (remove nil?
-                       (conj
-                         (or image-writers
-                             (default-image-writers log inputs))
-                         (or stl-writer
-                             #(default-stl-writer log inputs)))))))
+    (try
+      (scad-writer log inputs)
+      (catch Exception e
+        ;; This would happen when a scad-clj scaffold is invalid.
+        (log (merge inputs {::schema/update-type ::schema/failed-scad
+                            ::schema/exception e}))))
+    (when render
+      (when-not (reduce
+                   ;; Terminate if any render fails.
+                   (fn [_ writer] (if (writer) true (reduced false)))
+                   nil
+                   ;; Iterate over one rendering function per output file.
+                   (remove nil?
+                     (conj
+                       (or image-writers
+                           (default-image-writers log inputs))
+                       (or stl-writer
+                           #(default-stl-writer log inputs)))))
+        (reset! abort true)))
+    (when (not @abort)
       (log (merge inputs {::schema/update-type ::schema/finished})))
-    (async/go
-      (dotimes [_ @n-ends] (async/<! loose-ends)))))
+    ;; Return a go block to synchronize with caller.
+    (async/go (dotimes [_ @n-ends] (async/<! loose-ends)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -272,7 +287,8 @@
                  (async/<! response-chan))))
          build
            (fn [asset]
-             (async/go (async/>! build-chan
+             (async/go
+               (async/>! build-chan
                          (build-fn enqueue-report options asset))))]
      (async/thread
        (loop []  ; Loop until report channel is closed.
@@ -282,11 +298,13 @@
              (async/close! response-chan))  ; Coordinate with sender.
            (recur))))
      ;; Start all async threads building assets, then wait for them to finish.
-     (doall (map build assets))
-     ;; Waiting takes the form of synchronously getting a build-fn go block out
-     ;; of build-chan and then waiting for that block as a channel.
-     (dotimes [_ (count assets)] (async/<!! (async/<!! build-chan)))
-     ;; By this point, both build-chan and report-chan should be drained,
-     ;; but the async/thread in this function should still be synchronously
-     ;; waiting for new reports. Close the channel to let the thread exit.
-     (async/close! report-chan))))
+     (try
+       (do
+         (doall (map build assets))
+         ;; Waiting takes the form of synchronously getting a build-fn go block out
+         ;; of build-chan and then waiting for that block as a channel.
+         (dotimes [_ (count assets)] (async/<!! (async/<!! build-chan))))
+       ;; By this point, both build-chan and report-chan should be drained,
+       ;; but the async/thread in this function should still be synchronously
+       ;; waiting for new reports. Close the channel to let the thread exit.
+       (finally (async/close! report-chan))))))
