@@ -28,28 +28,38 @@ source of specifications for your model. There are three options:
 3. `:model-fn` is a nullary function that returns either of the above.
 
 These three are all interchangeable, but you must supply at least one with each
-asset. An example of a complete asset looks like this:
+asset. Here’s an example program that defines and builds a complete asset:
 
 ```clojure
-(def cube-asset {:name "cuboid", :model-main (cube 1 2 3)})
-```
+(ns hello-cube
+  (:require [scad-app.core :refer [build-all]]
+            [scad-clj.model :refer [cube]]))
 
-Having packaged your asset, you can write it to a file, this way:
+(def assets {:name "cuboid", :model-main (cube 1 2 3)})
 
-```clojure
-(scad-app.core/build-all [cube-asset])
+(build-all assets)
 ```
 
 By default, this will produce a file called `output/scad/cuboid.scad`,
 containing only the OpenSCAD code for the example asset. Along the way, you
-will get simple progress reports to `*out*`, e.g. your terminal.
+will get progress reports to `*out*`, e.g. your terminal.
 
 ### Advanced features
 
+2D views (`:images`) and limits on resolution (e.g. `:minimum-facet-angle`) can
+be added directly to assets.
+
 Things like how the file paths are built, whether and how to render to STL etc.
-are all configurable by passing options to `build-all`. To duplicate a chiral
-asset in a mirrored version, and/or inject modules into its model vector, call
-`refine-asset` first.
+are all configurable by passing options to `build-all`.
+
+To duplicate a chiral asset in a mirrored version, and/or inject modules into
+its model vector, call `refine-asset` first. Modules are themselves packaged as
+assets.
+
+## Template
+
+`scad-app` is made easy through the `cad` Leiningen template
+[here](https://github.com/veikman/cad-template).
 
 ## Demo
 

@@ -55,10 +55,10 @@
                           asset)]
                   {:report-fn (fn [_] nil)})
                 (slurp (.getPath t))))]
-      (is (= (contents {:minimum-face-angle 1})
+      (is (= (contents {:minimum-facet-angle 1})
              "$fa = 1;\nsquare ([1, 2], center=true);\n"))
-      (is (= (contents {:face-count 2
-                        :minimum-face-size 1})
+      (is (= (contents {:facet-count 2
+                        :minimum-facet-size 1})
              "$fn = 2;\n$fs = 1;\nsquare ([1, 2], center=true);\n")))))
 
 (deftest refine-asset-test
