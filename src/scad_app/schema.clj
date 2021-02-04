@@ -3,7 +3,7 @@
 (ns scad-app.schema
   (:require [clojure.spec.alpha :as spec]))
 
-(spec/def ::update-type
+(spec/def ::update-type  ; Types of updates about build process.
   #{::started-scad ::failed-scad ::started-render ::failed-render ::finished})
 
 (spec/def ::render boolean?)
@@ -19,9 +19,9 @@
 (spec/def ::model-main seq?)
 (spec/def ::model-vector (spec/and vector? (spec/coll-of ::model-main)))
 ;; The OpenSCAD manual on $fa and $fs: “The minimum allowed value is 0.01.”
-(spec/def ::minimum-face-angle (spec/and number? #(>= % 0.01)))
-(spec/def ::minimum-face-size ::minimum-face-angle)
-(spec/def ::face-count (spec/and integer? #(>= % 0)))
+(spec/def ::minimum-facet-angle (spec/and number? #(>= % 0.01)))
+(spec/def ::minimum-facet-size ::minimum-facet-angle)
+(spec/def ::facet-count (spec/and integer? #(>= % 0)))
 (spec/def ::chiral boolean?)
 (spec/def ::mirrored boolean?)
 (spec/def ::translation (spec/coll-of number? :count 3))
@@ -40,7 +40,7 @@
 (spec/def ::images (spec/coll-of ::image))
 (spec/def ::asset (spec/keys :req-un [::name]
                              :opt-un [::model-fn ::model-main ::model-vector
-                                      ::chiral ::mirrored ::images ::face-count
-                                      ::minimum-face-angle ::minimum-face-size]))
+                                      ::chiral ::mirrored ::images ::facet-count
+                                      ::minimum-facet-angle ::minimum-facet-size]))
 
 ;; TODO: Expand ::asset to require one of model-fn, model-main, model-vector.

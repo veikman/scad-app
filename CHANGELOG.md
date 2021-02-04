@@ -4,7 +4,10 @@ This log follows the conventions of
 
 ## [Unreleased]
 ### Changed
-- Changed keywords passed to `report-fn`. This breaks applications
+- Renamed `minimum-face-angle`, `minimum-face-size` and `face-count` to use the
+  word “facet” instead of “face”, matching OpenSCAD documentation.
+- Moved and thereby re-namespaced keywords to a new `scad-app.schema` module.
+- Changed the keywords passed to `report-fn`. This breaks applications
   that pass a custom function relying on the old keywords; no such
   applications are known.
     - Namespaced keywords pertaining to log messages.

@@ -117,17 +117,17 @@
   This operation does not log failure because it does not call external
   utilities that are considered risky. Failure will instead crash the
   current application."
-  [log {:keys [filepath-scad minimum-face-angle face-count
-               minimum-face-size]
+  [log {:keys [filepath-scad minimum-facet-angle facet-count
+               minimum-facet-size]
         :as asset}]
   {:pre [(some? filepath-scad)
          (spec/valid? ::schema/asset asset)]}
   (log (merge asset {::schema/update-type ::schema/started-scad}))
   (io/make-parents filepath-scad)
   (let [{:keys [model-vector]} (ensure-model-vector asset)
-        preface [(when minimum-face-angle (fa! minimum-face-angle))
-                 (when face-count (fn! face-count))
-                 (when minimum-face-size (fs! minimum-face-size))]]
+        preface [(when minimum-facet-angle (fa! minimum-facet-angle))
+                 (when facet-count (fn! facet-count))
+                 (when minimum-facet-size (fs! minimum-facet-size))]]
     (spit filepath-scad (apply write-scad (concat preface model-vector)))))
 
 (defn- from-scad
