@@ -5,14 +5,17 @@ with Matthew Farrell’s [`scad-clj`](https://github.com/farrellm/scad-clj).
 
 [![Clojars Project](https://img.shields.io/clojars/v/scad-app.svg)](https://clojars.org/scad-app)
 
-At its most basic, this library offers a simple, standardized way to get SCAD
-files and render them to STL with OpenSCAD, from Clojure. Concurrency is done
-with `core.async`, automatically using a reasonable amount of CPU threads for
-your hardware.
+At its most basic, this library writes SCAD files from Clojure. Concurrency is
+done with `core.async`, automatically using a reasonable amount of CPU threads
+for your hardware.
 
-`scad-app` also supports [chirality](https://en.wikipedia.org/wiki/Chirality)
-in concert with a reasonable way to define reusable OpenSCAD modules instead of
-repeating full specs throughout generated code.
+Other features, all through control of OpenSCAD:
+
+* Rendering to STL.
+* Rendering to 2D image formats. Multiple views per model.
+* Management of reusable modules, including support for
+  [chirality](https://en.wikipedia.org/wiki/Chirality).
+* File-level settings for resolution, e.g. facet count.
 
 ## Usage
 
@@ -26,15 +29,20 @@ source of specifications for your model. There are three options:
 
 These three are all interchangeable, but you must supply at least one with each
 asset. An example of a complete asset looks like this:
-`(def cube-asset {:name "cute_cube", :model-main (cube 1 2 3)})`.
 
-Having packaged your asset this way, you can write it to a file by calling
-`(scad-app.core/build-all [cube-asset])`.
+```clojure
+(def cube-asset {:name "cuboid", :model-main (cube 1 2 3)})
+```
 
-By default, this will produce a file called `output/scad/cute_cube.scad`,
-containing only the OpenSCAD code for the example cuboid.
-Along the way, you will get simple progress reports to `*out*`, e.g. your
-terminal.
+Having packaged your asset, you can write it to a file, this way:
+
+```clojure
+(scad-app.core/build-all [cube-asset])
+```
+
+By default, this will produce a file called `output/scad/cuboid.scad`,
+containing only the OpenSCAD code for the example asset. Along the way, you
+will get simple progress reports to `*out*`, e.g. your terminal.
 
 ### Advanced features
 
@@ -53,7 +61,7 @@ Run it like this: `lein exec -p src/demo/core.clj`
 
 ## License
 
-Copyright © 2019 Viktor Eikman.
+Copyright © 2019–2021 Viktor Eikman.
 
 This software is distributed under the [Eclipse Public License](LICENSE-EPL),
 (EPL) v2.0 or any later version thereof. This software may also be made
